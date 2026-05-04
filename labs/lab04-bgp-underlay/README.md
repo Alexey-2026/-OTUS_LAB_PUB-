@@ -90,6 +90,7 @@ router bgp 65501
     bfd
     remote-as 65501
     timers 3 9
+    password 3 9125d59c18a9b015
     address-family ipv4 unicast
       send-community
       send-community extended
@@ -157,6 +158,7 @@ router bgp 65501
     bfd
     remote-as 65501
     timers 3 9
+    password 3 9125d59c18a9b015
     address-family ipv4 unicast
       send-community
       send-community extended
@@ -228,6 +230,7 @@ router bgp 65501
     bfd
     remote-as 65501
     timers 3 9
+    password 3 9125d59c18a9b015
     address-family ipv4 unicast
       send-community
       send-community extended
@@ -293,6 +296,7 @@ router bgp 65501
     bfd
     remote-as 65501
     timers 3 9
+    password 3 9125d59c18a9b015
     address-family ipv4 unicast
       send-community
       send-community extended
@@ -369,6 +373,7 @@ router bgp 65501
     bfd
     remote-as 65501
     timers 3 9
+    password 3 9125d59c18a9b015
     address-family ipv4 unicast
       send-community
       send-community extended
