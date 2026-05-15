@@ -7,3 +7,4 @@
 3. [ISIS UNDERLAY](labs/lab03-isis-underlay/README.md)
 4. [iBGP UNDERLAY](labs/lab04-bgp-underlay/README.md)
 5. [VXLAN L2VNI](labs/lab05-VXLAN-L2VNI/README.md)
+6. [VXLAN L3VNI](labs/lab06-VXLAN-L3VNI/README.md)
