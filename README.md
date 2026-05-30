@@ -9,4 +9,4 @@
 5. [VXLAN L2VNI](labs/lab05-VXLAN-L2VNI/README.md)
 6. [VXLAN L3VNI](labs/lab06-VXLAN-L3VNI/README.md)
 7. [VxLAN Multihoming](labs/lab07-VXLAN-Multihoming/README.md)
-8. [VxLAN Routing](labs/lab08-VxLAN. Routing/README.md)
+8. [VxLAN Routing](labs/lab08-VXLAN-Routing/README.md)
