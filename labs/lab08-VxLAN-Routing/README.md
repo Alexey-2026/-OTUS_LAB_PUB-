@@ -938,9 +938,10 @@ router bgp 65501
       bfd
       remote-as 65505
       description ----TO_CLIENT3_Lo----
+      password 3 9125d59c18a9b015
       update-source Ethernet1/1
       ebgp-multihop 2
-      timers 10 30
+      timers 1 3
       address-family ipv4 unicast
         send-community
         send-community extended
@@ -1143,9 +1144,10 @@ router bgp 65501
       bfd
       remote-as 65505
       description ----TO_CLIENT3_Lo----
+      password 3 9125d59c18a9b015
       update-source Ethernet1/1
       ebgp-multihop 2
-      timers 10 30
+      timers 1 3
       address-family ipv4 unicast
         send-community
         send-community extended
@@ -1171,7 +1173,9 @@ router bgp 65505
  bgp router-id 30.30.30.30
  bgp log-neighbor-changes
  neighbor 192.168.1.1 remote-as 65501
+ neighbor 192.168.1.1 password 7 1511021F0725
  neighbor 192.168.2.1 remote-as 65501
+ neighbor 192.168.2.1 password 7 14141B180F0B
  !
  address-family ipv4
   redistribute connected route-map RM_FOR_BGP_L0
