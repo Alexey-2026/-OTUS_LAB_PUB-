@@ -779,9 +779,15 @@ vlan 78
 vlan 999
   vn-segment 999999
 
+ip prefix-list PL_ALLOW_ONLY_24 seq 10 permit 10.0.0.0/24 
+ip prefix-list PL_ALLOW_ONLY_24 seq 15 permit 20.0.0.0/24 
+ip prefix-list PL_ALLOW_ONLY_24 seq 20 deny 0.0.0.0/0 le 32
+
 route-map RM_PERMIT_NET permit 10
 route-map RM_RED_FOR_BGP permit 10
   match interface loopback0
+route-map RM_SEND_ONLY_24 permit 10
+  match ip address prefix-list PL_ALLOW_ONLY_24
 
 vrf context VRF_A
   vni 770000
@@ -978,9 +984,15 @@ vlan 78
 vlan 999
   vn-segment 999999
 
+ip prefix-list PL_ALLOW_ONLY_24 seq 10 permit 10.0.0.0/24 
+ip prefix-list PL_ALLOW_ONLY_24 seq 15 permit 20.0.0.0/24 
+ip prefix-list PL_ALLOW_ONLY_24 seq 20 deny 0.0.0.0/0 le 32
+
 route-map RM_PERMIT_NET permit 10
 route-map RM_RED_FOR_BGP permit 10
   match interface loopback0
+route-map RM_SEND_ONLY_24 permit 10
+  match ip address prefix-list PL_ALLOW_ONLY_24
 
 vrf context VRF_A
   vni 770000
@@ -5688,8 +5700,9 @@ BGP activity 17/11 prefixes, 68/56 paths, scan interval 60 secs
 Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
 192.168.1.1     4        65501    1141    1202      198    0    0 03:08:53        5
 192.168.2.1     4        65501    5566    5858      198    0    0 15:26:56        5
+
 Client3#sh bgp ipv4 unicast 
-BGP table version is 198, local router ID is 30.30.30.30
+BGP table version is 233, local router ID is 30.30.30.30
 Status codes: s suppressed, d damped, h history, * valid, > best, i - internal, 
               r RIB-failure, S Stale, m multipath, b backup-path, f RT-Filter, 
               x best-external, a additional-path, c RIB-compressed, 
@@ -5697,18 +5710,13 @@ Origin codes: i - IGP, e - EGP, ? - incomplete
 RPKI validation codes: V valid, I invalid, N Not found
 
      Network          Next Hop            Metric LocPrf Weight Path
- *>  0.0.0.0          192.168.1.1                            0 65501 i
- *m                   192.168.2.1                            0 65501 i
-                      0.0.0.0                                0 i
+     0.0.0.0          0.0.0.0                                0 i
  *>  10.0.0.0/24      192.168.1.1                            0 65501 i
- *m                   192.168.2.1                            0 65501 i
- *>  10.0.0.11/32     192.168.1.1                            0 65501 i
  *m                   192.168.2.1                            0 65501 i
  *>  20.0.0.0/24      192.168.1.1                            0 65501 i
  *m                   192.168.2.1                            0 65501 i
- *>  20.0.0.12/32     192.168.1.1                            0 65501 i
- *m                   192.168.2.1                            0 65501 i
  *>  30.30.30.30/32   0.0.0.0                  0         32768 ?
+
 Client3#sh bgp ipv4 unicast 10.0.0.0  
 BGP routing table entry for 10.0.0.0/24, version 188
 Paths: (2 available, best #1, table default)
@@ -5757,20 +5765,14 @@ Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
        a - application route
        + - replicated route, % - next hop override
 
-Gateway of last resort is 192.168.2.1 to network 0.0.0.0
+Gateway of last resort is not set
 
-B*    0.0.0.0/0 [20/0] via 192.168.2.1, 03:12:32
-                [20/0] via 192.168.1.1, 03:12:32
-      10.0.0.0/8 is variably subnetted, 2 subnets, 2 masks
-B        10.0.0.0/24 [20/0] via 192.168.2.1, 03:12:32
-                     [20/0] via 192.168.1.1, 03:12:32
-B        10.0.0.11/32 [20/0] via 192.168.2.1, 02:46:37
-                      [20/0] via 192.168.1.1, 02:46:37
-      20.0.0.0/8 is variably subnetted, 2 subnets, 2 masks
-B        20.0.0.0/24 [20/0] via 192.168.2.1, 03:12:32
-                     [20/0] via 192.168.1.1, 03:12:32
-B        20.0.0.12/32 [20/0] via 192.168.2.1, 03:12:32
-                      [20/0] via 192.168.1.1, 03:12:32
+      10.0.0.0/24 is subnetted, 1 subnets
+B        10.0.0.0 [20/0] via 192.168.2.1, 22:24:10
+                  [20/0] via 192.168.1.1, 22:24:10
+      20.0.0.0/24 is subnetted, 1 subnets
+B        20.0.0.0 [20/0] via 192.168.2.1, 22:24:10
+                  [20/0] via 192.168.1.1, 22:24:10
       30.0.0.0/32 is subnetted, 1 subnets
 C        30.30.30.30 is directly connected, Loopback0
       192.168.1.0/24 is variably subnetted, 2 subnets, 2 masks
