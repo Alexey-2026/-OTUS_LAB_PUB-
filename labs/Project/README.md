@@ -9,6 +9,39 @@
 
 Такая гибридная схема позволяет снизить нагрузку на контроллеры и маршрутизаторы, обеспечивая гибкость при построении отказоустойчивых ЦОД.
 
+## Описание проекта
+
+В рамках данной лабораторной работы реализована **многосайтовая архитектура VXLAN EVPN Multi-Site**, демонстрирующая сосуществование двух моделей пересылки BUM-трафика:
+
+* **PIM (Protocol Independent Multicast)** — используется внутри Site 1 и Site 2 для BUM-трафика VLAN 10.
+* **Ingress Replication** — используется внутри Site 1 и Site 2 для BUM-трафика VLAN 20.
+
+### Как работает пересылка BUM-трафика в EVPN Multi-Site?
+
+Ключевая особенность технологии EVPN Multi-Site:
+
+* **Внутри сайта (intra-site):** Метод репликации определяется настройками на листьях. В данном проекте для VLAN 10 используется PIM (на обоих сайтах), для VLAN 20 — Ingress Replication (на обоих сайтах).
+* **Между сайтами (inter-site):** BUM-трафик передаётся **только через Ingress Replication** — это обязательное требование технологии Multi-Site. Согласно официальной документации Cisco, **до версии NX-OS 10.2(2)F между DCI-пирами поддерживается только Ingress Replication**.
+
+На пограничных шлюзах (BGW) команда `multisite ingress-replication` включает именно этот механизм межсайтовой репликации. Она определяет метод репликации BUM-трафика для расширения Layer 2 VNI между сайтами.
+
+> **Источник:** Официальная документация Cisco NX-OS VXLAN Configuration Guide, раздел "Configure VNI dual mode":  
+> *"Defines the Multi-Site BUM replication method for extending the Layer 2 VNI"*  
+> `switch(config-if-nve-vni)# multisite ingress-replication`  
+> — [Cisco NX-OS VXLAN Configuration Guide, Release 10.4(x), стр. 15-16](https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/104x/configuration/vxlan/cisco-nexus-9000-series-nx-os-vxlan-configuration-guide-release-104x/m_configuring_multisite_93x.pdf#page=15)
+
+### Зачем нужна такая комбинация?
+
+Данная конфигурация показывает два сценария:
+
+1. **Для VLAN 10** — демонстрация того, как PIM, используемый внутри каждого сайта, стыкуется с обязательным Ingress Replication на границе сайта. Это типичный сценарий миграции или сосуществования legacy-мультикаста с современной EVPN Multi-Site архитектурой.
+
+2. **Для VLAN 20** — сценарий, где Ingress Replication используется везде (и внутри сайтов, и между ними).
+
+**Важное замечание про PIM:** PIM сложнее в траблшутинге — требует проверки RPF (обратного пути), наличия (*,G) и (S,G) записей в mroute. Основные проблемы с RP включают: недоступность RP по unicast-маршруту, рассогласование адресов RP на разных устройствах, неправильный RPF-путь к RP (с петлями или asymmetric routing), перегрузку Register-сообщениями при старте источников, а также специфические проблемы Anycast-RP (например, отсутствие синхронизации MSDP или Register, уходящие в никуда при переключении). Ingress Replication проще: при проблемах достаточно проверить BGP EVPN (маршруты типа 3, route-target) и связность NVE-пиров.
+
+
+
 ## Схема сети
 
 <img src="https://github.com/user-attachments/assets/c6936e33-662d-44dd-a4f1-0d13465b4bf5" width="700" style="max-width: 100%; height: auto;">
