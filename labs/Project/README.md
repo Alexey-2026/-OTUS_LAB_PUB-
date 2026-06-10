@@ -543,7 +543,7 @@ evpn
 ```
 </details>
 
-### Spine2 (второй BGW и Anycast-RP)
+### Spine2 (второй BGW для Site1 и Anycast-RP)
 <details>
 <summary><b>Конфигурация Spine2</b></summary>
   
