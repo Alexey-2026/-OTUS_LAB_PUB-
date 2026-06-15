@@ -2,25 +2,16 @@
 
 ## Описание проекта
 
-В рамках данной лабораторной работы реализована **многосайтовая архитектура EVPN VXLAN** с использованием комбинированной модели пересылки неизвестного, широковещательного и многоадресного (BUM) трафика. Решение сочетает два подхода:
+В рамках данного проекта реализована **многосайтовая архитектура EVPN VXLAN** с использованием комбинированной модели пересылки BUM-трафика. Решение сочетает два подхода:
 
-* **PIM (Protocol Independent Multicast)** — для оптимизации рассылки BUM-трафика внутри одного сайта (Site 1) в сегменте VLAN 10.
-* **Ingress Replication** — для BUM-трафика VLAN 20 в пределах Site 1, а также для всех межсайтовых взаимодействий между Site 1 и Site 2.
-
-Такая гибридная схема позволяет снизить нагрузку на контроллеры и маршрутизаторы, обеспечивая гибкость при построении отказоустойчивых ЦОД.
-
-## Описание проекта
-
-В рамках данной лабораторной работы реализована **многосайтовая архитектура VXLAN EVPN Multi-Site**, демонстрирующая сосуществование двух моделей пересылки BUM-трафика:
-
-* **PIM (Protocol Independent Multicast)** — используется внутри Site 1 и Site 2 для BUM-трафика VLAN 10.
-* **Ingress Replication** — используется внутри Site 1 и Site 2 для BUM-трафика VLAN 20.
+* **PIM (Protocol Independent Multicast)** — для рассылки BUM-трафика внутри сайтов в сегменте VLAN 10.
+* **Ingress Replication** — для BUM-трафика VLAN 20 внутри сайтов, а также для всех межсайтовых взаимодействий между Site 1 и Site 2.
 
 ### Как работает пересылка BUM-трафика в EVPN Multi-Site?
 
 Ключевая особенность технологии EVPN Multi-Site:
 
-* **Внутри сайта (intra-site):** Метод репликации определяется настройками на листьях. В данном проекте для VLAN 10 используется PIM (на обоих сайтах), для VLAN 20 — Ingress Replication (на обоих сайтах).
+* **Внутри сайта (intra-site):** Метод репликации определяется настройками на Leaf. В данном проекте для VLAN 10 используется PIM (на обоих сайтах), для VLAN 20 — Ingress Replication (на обоих сайтах).
 * **Между сайтами (inter-site):** BUM-трафик передаётся **только через Ingress Replication** — это обязательное требование технологии Multi-Site. Согласно официальной документации Cisco, **до версии NX-OS 10.2(2)F между DCI-пирами поддерживается только Ingress Replication**.
 
 На пограничных шлюзах (BGW) команда `multisite ingress-replication` включает именно этот механизм межсайтовой репликации. Она определяет метод репликации BUM-трафика для расширения Layer 2 VNI между сайтами.
@@ -34,13 +25,11 @@
 
 Данная конфигурация показывает два сценария:
 
-1. **Для VLAN 10** — демонстрация того, как PIM, используемый внутри каждого сайта, стыкуется с обязательным Ingress Replication на границе сайта. Это типичный сценарий миграции или сосуществования legacy-мультикаста с современной EVPN Multi-Site архитектурой.
+1. **Для VLAN 10** — демонстрация того, как PIM, используемый внутри каждого сайта, стыкуется с обязательным Ingress Replication на границе сайта. Это типичный сценарий миграции или сосуществования legacy-мультикаста с  EVPN Multi-Site архитектурой.
 
 2. **Для VLAN 20** — сценарий, где Ingress Replication используется везде (и внутри сайтов, и между ними).
 
-**Важное замечание про PIM:** PIM сложнее в траблшутинге — требует проверки RPF (обратного пути), наличия (*,G) и (S,G) записей в mroute. Основные проблемы с RP включают: недоступность RP по unicast-маршруту, рассогласование адресов RP на разных устройствах, неправильный RPF-путь к RP (с петлями или asymmetric routing), перегрузку Register-сообщениями при старте источников, а также специфические проблемы Anycast-RP (например, отсутствие синхронизации MSDP или Register, уходящие в никуда при переключении). Ingress Replication проще: при проблемах достаточно проверить BGP EVPN (маршруты типа 3, route-target) и связность NVE-пиров.
-
-
+**Важное замечание про PIM:** PIM сложнее в траблшутинге (требует проверки RPF, mroute, состояния (*,G) и (S,G)). Ingress Replication проще: при проблемах достаточно проверить BGP EVPN (маршруты типа 3, route-target) и связность NVE-пиров. Ingress Replication проще в настройке и диагностике, поэтому он является наиболее часто используемым методом в современных ЦОД. 
 
 ## Схема сети
 
@@ -51,9 +40,9 @@
 ### Архитектура и топология
 
 * **SuperSpine** — единая точка подключения для всех сайтов, выполняет маршрутизацию между AS 65001 (Site 1) и AS 65002 (Site 2) через eBGP.
-* **Сайт 1 (AS 65001)**: три Spina (Spine1/2/3) и три листа (Leaf11, Leaf12, Leaf13). Spine1 и Spine2 объединены в **Anycast-RP (172.0.0.1)** и являются пограничными шлюзами сайта (BGW) с VIP-адресом 100.0.0.1. Leaf11 и Leaf12 связаны в **vPC**.
-* **Сайт 2 (AS 65002)**: один Spine3 (также BGW с VIP 100.0.0.2) и один лист Leaf21.
-* **Underlay**: OSPF (processes `UNDERLAY` для сайтов и `DCI` для SuperSpine) с BFD. Адресация P2P (/31), Loopback'и — для идентификации устройств и BGP-пиринга.
+* **Сайт 1 (AS 65001)**: три Spine (Spine1/2/3) и три Leaf (Leaf11, Leaf12, Leaf13). Spine1 и Spine2 объединены в **Anycast-RP (172.0.0.1)** и являются пограничными шлюзами сайта (BGW) с VIP-адресом 100.0.0.1. Leaf11 и Leaf12 связаны в **vPC**.
+* **Сайт 2 (AS 65002)**: один Spine3 (также BGW с VIP 100.0.0.2) и один leaf Leaf21.
+* **Underlay**: OSPF (processes `underlay` для сайтов и `DCI` для SuperSpine) с BFD. Адресация P2P (/31), Loopback 0 — для идентификации устройств и BGP-пиринга.
 * **Overlay**: VXLAN с EVPN-сигнализацией. Маршруты между сайтами распространяются через SuperSpine с сохранением следующего перехода (route-map `NH_UNCH`).
 
 ### Цели работы
@@ -62,7 +51,7 @@
 2. Настроить **Anycast-RP и PIM SM** для доставки BUM-трафика внутри VLAN 10 (мультикаст-группа 225.0.0.10).
 3. Настроить **Ingress Replication** для VLAN 20 (на уровне BGP EVPN).
 4. Обеспечить **взаимодействие между сайтами** через SuperSpine с транзитом как L2-, так и L3-маршрутов EVPN.
-5. Проверить резервирование и отказоустойчивость за счет vPC и Anycast-шлюзов.
+5. Обеспечить резервирование и отказоустойчивость за счет vPC и Anycast-шлюзов.
 
 ## Адресация
 
@@ -283,6 +272,7 @@ nv overlay evpn
 feature ospf
 feature bgp
 feature pim
+feature msdp
 feature interface-vlan
 feature vn-segment-vlan-based
 feature bfd
@@ -326,6 +316,10 @@ ip pim rp-address 172.0.0.1 group-list 225.0.0.0/24
 ip pim ssm range 232.0.0.0/8
 ip pim anycast-rp 172.0.0.1 172.0.0.111
 ip pim anycast-rp 172.0.0.1 172.0.0.112
+ip msdp originator-id loopback99
+ip msdp peer 99.99.99.112 connect-source loopback99
+ip msdp peer 99.99.99.113 connect-source loopback99
+
 vlan 1,10,20,77
 vlan 10
   name SERVERS_V10
@@ -554,6 +548,7 @@ nv overlay evpn
 feature ospf
 feature bgp
 feature pim
+feature msdp
 feature interface-vlan
 feature vn-segment-vlan-based
 feature bfd
@@ -597,6 +592,10 @@ ip pim rp-address 172.0.0.1 group-list 225.0.0.0/24
 ip pim ssm range 232.0.0.0/8
 ip pim anycast-rp 172.0.0.1 172.0.0.111
 ip pim anycast-rp 172.0.0.1 172.0.0.112
+ip msdp originator-id loopback99
+ip msdp peer 99.99.99.111 connect-source loopback99
+ip msdp peer 99.99.99.113 connect-source loopback99
+
 vlan 1,10,20,77
 vlan 10
   name SERVERS_V10
@@ -825,6 +824,7 @@ nv overlay evpn
 feature ospf
 feature bgp
 feature pim
+feature msdp
 feature interface-vlan
 feature vn-segment-vlan-based
 feature bfd
@@ -864,9 +864,13 @@ configure maintenance profile maintenance-mode
     address-family l2vpn evpn
       no nexthop trigger-delay
 
-ip pim rp-address 172.0.0.2 group-list 225.0.0.0/24
+ip pim rp-address 172.0.0.1 group-list 225.0.0.0/24
 ip pim ssm range 232.0.0.0/8
-ip pim anycast-rp 172.0.0.2 172.0.0.113
+ip pim anycast-rp 172.0.0.1 172.0.0.113
+ip msdp originator-id loopback99
+ip msdp peer 99.99.99.111 connect-source loopback99
+ip msdp peer 99.99.99.112 connect-source loopback99
+
 vlan 1,10,20,77
 vlan 10
   name SERVERS_V10
@@ -1803,10 +1807,10 @@ evpn
 
 ### Leaf21 (Leaf в Site2, обе VLAN)
 <details> 
-<summary><b>Конфигурация Leaf13</b></summary>
+<summary><b>Конфигурация Leaf21</b></summary>
   
 ```
- hostname Leaf21
+hostname Leaf21
 
 nv overlay evpn
 feature ospf
@@ -1984,3 +1988,1483 @@ evpn
 ```
 </details>
 
+## Диагностические команды
+
+Ниже приведены основные `show`-команды для проверки работоспособности каждой из используемых технологий. 
+
+### VPC (Leaf11 и Leaf12)
+Для связки Leaf11-Leaf12 проверяем состояние vPC.
+
+```
+Leaf11# show vpc brief
+Legend:
+(*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 10  
+Peer status                       : peer adjacency formed ok      
+vPC keep-alive status             : peer is alive                 
+Configuration consistency status  : success 
+Per-vlan consistency status       : success                       
+Type-2 consistency status         : success 
+vPC role                          : secondary, operational primary
+Number of vPCs configured         : 2   
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Enabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans    
+--    ----   ------ -------------------------------------------------
+1     Po1    up     10,20,77,3900                                               
+         
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ---------------
+11    Po10          up     success     success               10                             
+         
+12    Po20          up     success     success               20     
+```
+
+```
+Leaf12# show vpc brief 
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 10  
+Peer status                       : peer adjacency formed ok      
+vPC keep-alive status             : peer is alive                 
+Configuration consistency status  : success 
+Per-vlan consistency status       : success                       
+Type-2 consistency status         : success 
+vPC role                          : primary, operational secondary
+Number of vPCs configured         : 2   
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Enabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans    
+--    ----   ------ -------------------------------------------------
+1     Po1    up     10,20,77,3900                                               
+         
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ---------------
+11    Po10          up     success     success               10                                                                                                     
+12    Po20          up     success     success               20     
+```
+
+### Underlay (OSPF + BFD)
+
+Проверка соседства OSPF на всех интерфейсах — первый шаг. Если Underlay не работает, EVPN и VXLAN работать не смогут.
+
+### OSPF соседи (должны быть в состоянии FULL)
+```
+Spine1# show ip ospf neighbor
+ OSPF Process ID underlay VRF default
+ Total number of neighbors: 3
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 172.0.0.11        1 FULL/ -          1w2d     172.16.11.0     Eth1/1 
+ 172.0.0.12        1 FULL/ -          1w2d     172.16.21.0     Eth1/2 
+ 172.0.0.13        1 FULL/ -          1w2d     172.16.31.0     Eth1/3 
+ OSPF Process ID DCI VRF default
+ Total number of neighbors: 1
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 172.0.0.254       1 FULL/ -          4d20h    172.16.111.0    Eth1/4
+
+Spine2# show ip ospf neighbor
+ OSPF Process ID underlay VRF default
+ Total number of neighbors: 3
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 172.0.0.11        1 FULL/ -          00:01:34 172.16.12.0     Eth1/1 
+ 172.0.0.12        1 FULL/ -          00:01:26 172.16.22.0     Eth1/2 
+ 172.0.0.13        1 FULL/ -          00:01:33 172.16.32.0     Eth1/3 
+ OSPF Process ID DCI VRF default
+ Total number of neighbors: 1
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 172.0.0.254       1 FULL/ -          3d09h    172.16.112.0    Eth1/4
+
+Spine3# show ip ospf neighbor
+ OSPF Process ID UNDERLAY VRF default
+ Total number of neighbors: 1
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 172.0.0.21        1 FULL/ -          4d21h    172.16.211.1    Eth1/1 
+ OSPF Process ID DCI VRF default
+ Total number of neighbors: 1
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 172.0.0.254       1 FULL/ -          4d21h    172.16.113.0    Eth1/4 
+```
+
+### Маршруты OSPF (Loopback'и всех устройств должны быть в таблице)
+```
+Leaf11# show ip route ospf
+99.99.99.111/32, ubest/mbest: 1/0
+    *via 172.16.11.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+99.99.99.112/32, ubest/mbest: 1/0
+    *via 172.16.12.1, Eth1/2, [110/41], 00:04:39, ospf-underlay, intra
+172.0.0.1/32, ubest/mbest: 2/0
+    *via 172.16.11.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+    *via 172.16.12.1, Eth1/2, [110/41], 00:04:39, ospf-underlay, intra
+172.0.0.12/32, ubest/mbest: 1/0
+    *via 172.16.39.1, Vlan3900, [110/41], 1w2d, ospf-underlay, intra
+172.0.0.13/32, ubest/mbest: 2/0
+    *via 172.16.11.1, Eth1/1, [110/81], 1w2d, ospf-underlay, intra
+    *via 172.16.12.1, Eth1/2, [110/81], 00:04:39, ospf-underlay, intra
+172.0.0.111/32, ubest/mbest: 1/0
+    *via 172.16.11.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+172.0.0.112/32, ubest/mbest: 1/0
+    *via 172.16.12.1, Eth1/2, [110/41], 00:04:39, ospf-underlay, intra
+172.16.21.0/31, ubest/mbest: 2/0
+    *via 172.16.11.1, Eth1/1, [110/80], 1w2d, ospf-underlay, intra
+    *via 172.16.39.1, Vlan3900, [110/80], 1w2d, ospf-underlay, intra
+172.16.22.0/31, ubest/mbest: 2/0
+    *via 172.16.12.1, Eth1/2, [110/80], 00:04:39, ospf-underlay, intra
+    *via 172.16.39.1, Vlan3900, [110/80], 1w2d, ospf-underlay, intra
+172.16.31.0/31, ubest/mbest: 1/0
+    *via 172.16.11.1, Eth1/1, [110/80], 1w2d, ospf-underlay, intra
+172.16.32.0/31, ubest/mbest: 1/0
+    *via 172.16.12.1, Eth1/2, [110/80], 00:04:39, ospf-underlay, intra
+
+Leaf12# show ip route ospf
+99.99.99.111/32, ubest/mbest: 1/0
+    *via 172.16.21.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+99.99.99.112/32, ubest/mbest: 1/0
+    *via 172.16.22.1, Eth1/2, [110/41], 00:05:21, ospf-underlay, intra
+172.0.0.1/32, ubest/mbest: 2/0
+    *via 172.16.21.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+    *via 172.16.22.1, Eth1/2, [110/41], 00:05:21, ospf-underlay, intra
+172.0.0.11/32, ubest/mbest: 1/0
+    *via 172.16.39.0, Vlan3900, [110/41], 1w2d, ospf-underlay, intra
+172.0.0.13/32, ubest/mbest: 2/0
+    *via 172.16.21.1, Eth1/1, [110/81], 1w2d, ospf-underlay, intra
+    *via 172.16.22.1, Eth1/2, [110/81], 00:05:21, ospf-underlay, intra
+172.0.0.111/32, ubest/mbest: 1/0
+    *via 172.16.21.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+172.0.0.112/32, ubest/mbest: 1/0
+    *via 172.16.22.1, Eth1/2, [110/41], 00:05:21, ospf-underlay, intra
+172.16.11.0/31, ubest/mbest: 2/0
+    *via 172.16.21.1, Eth1/1, [110/80], 1w2d, ospf-underlay, intra
+    *via 172.16.39.0, Vlan3900, [110/80], 1w2d, ospf-underlay, intra
+172.16.12.0/31, ubest/mbest: 2/0
+    *via 172.16.22.1, Eth1/2, [110/80], 00:05:21, ospf-underlay, intra
+    *via 172.16.39.0, Vlan3900, [110/80], 1w2d, ospf-underlay, intra
+172.16.31.0/31, ubest/mbest: 1/0
+    *via 172.16.21.1, Eth1/1, [110/80], 1w2d, ospf-underlay, intra
+172.16.32.0/31, ubest/mbest: 1/0
+    *via 172.16.22.1, Eth1/2, [110/80], 00:05:21, ospf-underlay, intra
+
+Leaf13# show ip route ospf
+99.99.99.111/32, ubest/mbest: 1/0
+    *via 172.16.31.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+99.99.99.112/32, ubest/mbest: 1/0
+    *via 172.16.32.1, Eth1/2, [110/41], 00:07:49, ospf-underlay, intra
+172.0.0.0/24, ubest/mbest: 2/0
+    *via 172.16.31.1, Eth1/1, [110/81], 1w2d, ospf-underlay, intra
+    *via 172.16.32.1, Eth1/2, [110/81], 00:07:49, ospf-underlay, intra
+172.0.0.1/32, ubest/mbest: 2/0
+    *via 172.16.31.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+    *via 172.16.32.1, Eth1/2, [110/41], 00:07:49, ospf-underlay, intra
+172.0.0.11/32, ubest/mbest: 2/0
+    *via 172.16.31.1, Eth1/1, [110/81], 1w2d, ospf-underlay, intra
+    *via 172.16.32.1, Eth1/2, [110/81], 00:07:49, ospf-underlay, intra
+172.0.0.12/32, ubest/mbest: 2/0
+    *via 172.16.31.1, Eth1/1, [110/81], 1w2d, ospf-underlay, intra
+    *via 172.16.32.1, Eth1/2, [110/81], 00:07:42, ospf-underlay, intra
+172.0.0.111/32, ubest/mbest: 1/0
+    *via 172.16.31.1, Eth1/1, [110/41], 1w2d, ospf-underlay, intra
+172.0.0.112/32, ubest/mbest: 1/0
+    *via 172.16.32.1, Eth1/2, [110/41], 00:07:49, ospf-underlay, intra
+172.16.11.0/31, ubest/mbest: 1/0
+    *via 172.16.31.1, Eth1/1, [110/80], 1w2d, ospf-underlay, intra
+172.16.12.0/31, ubest/mbest: 1/0
+    *via 172.16.32.1, Eth1/2, [110/80], 00:07:49, ospf-underlay, intra
+172.16.21.0/31, ubest/mbest: 1/0
+    *via 172.16.31.1, Eth1/1, [110/80], 1w2d, ospf-underlay, intra
+172.16.22.0/31, ubest/mbest: 1/0
+    *via 172.16.32.1, Eth1/2, [110/80], 00:07:49, ospf-underlay, intra
+172.16.39.0/31, ubest/mbest: 2/0
+    *via 172.16.31.1, Eth1/1, [110/120], 1w2d, ospf-underlay, intra
+    *via 172.16.32.1, Eth1/2, [110/120], 00:07:49, ospf-underlay, intra
+
+Leaf21# show ip route ospf
+
+99.99.99.113/32, ubest/mbest: 1/0
+    *via 172.16.211.0, Eth1/1, [110/41], 4d21h, ospf-UNDERLAY, intra
+172.0.0.2/32, ubest/mbest: 1/0
+    *via 172.16.211.0, Eth1/1, [110/41], 4d21h, ospf-UNDERLAY, intra
+172.0.0.113/32, ubest/mbest: 1/0
+    *via 172.16.211.0, Eth1/1, [110/41], 4d21h, ospf-UNDERLAY, intra
+```
+### BGP
+Проверяем, что пиры установлены, а нужные маршруты (тип 2, тип 3) приходят.
+
+<details> 
+<summary><b> Leaf11</b></summary>
+ 
+ ```
+Leaf11# show bgp l2vpn evpn summary 
+BGP summary information for VRF default, address family L2VPN EVPN
+BGP router identifier 172.0.0.100, local AS number 65001
+BGP table version is 8725, L2VPN EVPN config peers 2, capable peers 2
+41 network entries and 59 paths using 9764 bytes of memory
+BGP attribute entries [46/7912], BGP AS path entries [1/10]
+BGP community entries [0/0], BGP clusterlist entries [4/16]
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+172.0.0.111     4 65001  644382  639046     8725    0    0    2d06h 16        
+172.0.0.112     4 65001 1064085 1056425     8725    0    0 00:59:38 16
+
+Leaf11# show bgp l2vpn evpn 
+BGP routing table information for VRF default, address family L2VPN EVPN
+BGP table version is 8725, Local Router ID is 172.0.0.100
+Status: s-suppressed, x-deleted, S-stale, d-dampened, h-history, *-valid, >-best
+Path type: i-internal, e-external, c-confed, l-local, a-aggregate, r-redist, I-i
+njected
+Origin codes: i - IGP, e - EGP, ? - incomplete, | - multipath, & - backup, 2 - b
+est2
+
+   Network            Next Hop            Metric     LocPrf     Weight Path
+Route Distinguisher: 1:10000
+* i[2]:[0]:[0]:[48]:[0000.0000.0021]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+* i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+* i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+
+Route Distinguisher: 1:20000
+* i[2]:[0]:[0]:[48]:[0000.0000.0022]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+* i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+* i[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+*>i[3]:[0]:[32]:[99.99.99.111]/88
+                      99.99.99.111                      100          0 i
+*>i[3]:[0]:[32]:[99.99.99.112]/88
+                      99.99.99.112                      100          0 i
+
+Route Distinguisher: 172.0.0.11:32777    (L2VNI 10000)
+*>l[2]:[0]:[0]:[48]:[0000.0000.0011]:[0]:[0.0.0.0]/216
+                      172.0.0.100                       100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[0]:[0.0.0.0]/216
+                      172.0.0.13                        100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      172.0.0.100                       100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      172.0.0.13                        100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+
+Route Distinguisher: 172.0.0.11:32787    (L2VNI 20000)
+*>l[2]:[0]:[0]:[48]:[0000.0000.0012]:[0]:[0.0.0.0]/216
+                      172.0.0.100                       100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0012]:[32]:[20.0.0.12]/272
+                      172.0.0.100                       100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      100.0.0.1                         100          0 65254 65002 i
+* i[3]:[0]:[32]:[99.99.99.111]/88
+                      99.99.99.111                      100          0 i
+*>i                   99.99.99.111                      100          0 i
+* i[3]:[0]:[32]:[99.99.99.112]/88
+                      99.99.99.112                      100          0 i
+*>i                   99.99.99.112                      100          0 i
+*>l[3]:[0]:[32]:[172.0.0.100]/88
+                      172.0.0.100                       100      32768 i
+
+Route Distinguisher: 172.0.0.13:3
+* i[5]:[0]:[0]:[24]:[10.0.0.0]/224
+                      172.0.0.13               0        100          0 ?
+*>i                   172.0.0.13               0        100          0 ?
+
+Route Distinguisher: 172.0.0.13:32777
+* i[2]:[0]:[0]:[48]:[0000.0000.0013]:[0]:[0.0.0.0]/216
+                      172.0.0.13                        100          0 i
+*>i                   172.0.0.13                        100          0 i
+* i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      172.0.0.13                        100          0 i
+*>i                   172.0.0.13                        100          0 i
+
+Route Distinguisher: 172.0.0.111:32777
+* i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+*>i                   99.99.99.111                      100          0 i
+
+Route Distinguisher: 172.0.0.111:32787
+* i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+*>i                   99.99.99.111                      100          0 i
+* i[3]:[0]:[32]:[99.99.99.111]/88
+                      99.99.99.111                      100          0 i
+*>i                   99.99.99.111                      100          0 i
+
+Route Distinguisher: 172.0.0.112:32777
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+* i                   99.99.99.112                      100          0 i
+
+Route Distinguisher: 172.0.0.112:32787
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+* i                   99.99.99.112                      100          0 i
+* i[3]:[0]:[32]:[99.99.99.112]/88
+                      99.99.99.112                      100          0 i
+*>i                   99.99.99.112                      100          0 i
+
+Route Distinguisher: 172.0.0.100:3    (L3VNI 770000)
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      172.0.0.13                        100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      100.0.0.1                         100          0 65254 65002 i
+* i[5]:[0]:[0]:[24]:[10.0.0.0]/224
+                      172.0.0.13               0        100          0 ?
+*>l                   172.0.0.100              0        100      32768 ?
+*>l[5]:[0]:[0]:[24]:[20.0.0.0]/224
+                      172.0.0.100              0        100      32768 ?
+```
+</details> 
+
+<details> 
+<summary><b> Leaf12</b></summary>
+
+```
+Leaf12# show bgp l2vpn evpn summary 
+BGP summary information for VRF default, address family L2VPN EVPN
+BGP router identifier 172.0.0.100, local AS number 65001
+BGP table version is 3609, L2VPN EVPN config peers 2, capable peers 2
+41 network entries and 59 paths using 9764 bytes of memory
+BGP attribute entries [46/7912], BGP AS path entries [1/10]
+BGP community entries [0/0], BGP clusterlist entries [4/16]
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+172.0.0.111     4 65001  262867  261338     3609    0    0 00:28:20 16        
+172.0.0.112     4 65001  166199  164632     3609    0    0 01:13:21 16
+
+Leaf12# show bgp l2vpn evpn
+BGP routing table information for VRF default, address family L2VPN EVPN
+BGP table version is 3609, Local Router ID is 172.0.0.100
+Status: s-suppressed, x-deleted, S-stale, d-dampened, h-history, *-valid, >-best
+Path type: i-internal, e-external, c-confed, l-local, a-aggregate, r-redist, I-i
+njected
+Origin codes: i - IGP, e - EGP, ? - incomplete, | - multipath, & - backup, 2 - b
+est2
+
+   Network            Next Hop            Metric     LocPrf     Weight Path
+Route Distinguisher: 1:10000
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+* i                   100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+* i                   100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+* i                   100.0.0.1                         100          0 65254 65002 i
+
+Route Distinguisher: 1:20000
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+* i                   100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+* i                   100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      100.0.0.1                         100          0 65254 65002 i
+* i                   100.0.0.1                         100          0 65254 65002 i
+*>i[3]:[0]:[32]:[99.99.99.111]/88
+                      99.99.99.111                      100          0 i
+*>i[3]:[0]:[32]:[99.99.99.112]/88
+                      99.99.99.112                      100          0 i
+
+Route Distinguisher: 172.0.0.13:3
+*>i[5]:[0]:[0]:[24]:[10.0.0.0]/224
+                      172.0.0.13               0        100          0 ?
+* i                   172.0.0.13               0        100          0 ?
+
+Route Distinguisher: 172.0.0.13:32777
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[0]:[0.0.0.0]/216
+                      172.0.0.13                        100          0 i
+* i                   172.0.0.13                        100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      172.0.0.13                        100          0 i
+* i                   172.0.0.13                        100          0 i
+
+Route Distinguisher: 172.0.0.100:32777    (L2VNI 10000)
+*>l[2]:[0]:[0]:[48]:[0000.0000.0011]:[0]:[0.0.0.0]/216
+                      172.0.0.100                       100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[0]:[0.0.0.0]/216
+                      172.0.0.13                        100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      172.0.0.100                       100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      172.0.0.13                        100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+
+Route Distinguisher: 172.0.0.100:32787    (L2VNI 20000)
+*>l[2]:[0]:[0]:[48]:[0000.0000.0012]:[0]:[0.0.0.0]/216
+                      172.0.0.100                       100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0012]:[32]:[20.0.0.12]/272
+                      172.0.0.100                       100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[3]:[0]:[32]:[99.99.99.111]/88
+                      99.99.99.111                      100          0 i
+* i                   99.99.99.111                      100          0 i
+* i[3]:[0]:[32]:[99.99.99.112]/88
+                      99.99.99.112                      100          0 i
+*>i                   99.99.99.112                      100          0 i
+*>l[3]:[0]:[32]:[172.0.0.100]/88
+                      172.0.0.100                       100      32768 i
+
+Route Distinguisher: 172.0.0.111:32777
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+* i                   99.99.99.111                      100          0 i
+
+Route Distinguisher: 172.0.0.111:32787
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+* i                   99.99.99.111                      100          0 i
+*>i[3]:[0]:[32]:[99.99.99.111]/88
+                      99.99.99.111                      100          0 i
+* i                   99.99.99.111                      100          0 i
+
+Route Distinguisher: 172.0.0.112:32777
+* i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+*>i                   99.99.99.112                      100          0 i
+
+Route Distinguisher: 172.0.0.112:32787
+* i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+*>i                   99.99.99.112                      100          0 i
+* i[3]:[0]:[32]:[99.99.99.112]/88
+                      99.99.99.112                      100          0 i
+*>i                   99.99.99.112                      100          0 i
+
+Route Distinguisher: 172.0.0.100:3    (L3VNI 770000)
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      172.0.0.13                        100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      100.0.0.1                         100          0 65254 65002 i
+* i[5]:[0]:[0]:[24]:[10.0.0.0]/224
+                      172.0.0.13               0        100          0 ?
+*>l                   172.0.0.100              0        100      32768 ?
+*>l[5]:[0]:[0]:[24]:[20.0.0.0]/224
+                      172.0.0.100              0        100      32768 ?
+  ```
+</details>
+
+<details> 
+<summary><b> Leaf13</b></summary>
+ 
+  ```
+Leaf13# show bgp l2vpn evpn summary 
+BGP summary information for VRF default, address family L2VPN EVPN
+BGP router identifier 172.0.0.13, local AS number 65001
+BGP table version is 20311, L2VPN EVPN config peers 2, capable peers 2
+29 network entries and 48 paths using 7316 bytes of memory
+BGP attribute entries [38/6536], BGP AS path entries [1/10]
+BGP community entries [0/0], BGP clusterlist entries [4/16]
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+172.0.0.111     4 65001  646115  642522    20311    0    0     1w2d 14        
+172.0.0.112     4 65001  837586  830473    20311    0    0 01:15:13 14        
+
+Leaf13# show bgp l2vpn evpn 
+BGP routing table information for VRF default, address family L2VPN EVPN
+BGP table version is 20311, Local Router ID is 172.0.0.13
+Status: s-suppressed, x-deleted, S-stale, d-dampened, h-history, *-valid, >-best
+Path type: i-internal, e-external, c-confed, l-local, a-aggregate, r-redist, I-i
+njected
+Origin codes: i - IGP, e - EGP, ? - incomplete, | - multipath, & - backup, 2 - b
+est2
+
+   Network            Next Hop            Metric     LocPrf     Weight Path
+Route Distinguisher: 1:10000
+* i[2]:[0]:[0]:[48]:[0000.0000.0021]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+* i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+* i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+
+Route Distinguisher: 1:20000
+* i[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      100.0.0.1                         100          0 65254 65002 i
+*>i                   100.0.0.1                         100          0 65254 65002 i
+
+Route Distinguisher: 172.0.0.11:32777
+* i[2]:[0]:[0]:[48]:[0000.0000.0011]:[0]:[0.0.0.0]/216
+                      172.0.0.100                       100          0 i
+*>i                   172.0.0.100                       100          0 i
+* i[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      172.0.0.100                       100          0 i
+*>i                   172.0.0.100                       100          0 i
+
+Route Distinguisher: 172.0.0.11:32787
+* i[2]:[0]:[0]:[48]:[0000.0000.0012]:[32]:[20.0.0.12]/272
+                      172.0.0.100                       100          0 i
+*>i                   172.0.0.100                       100          0 i
+
+Route Distinguisher: 172.0.0.13:32777    (L2VNI 10000)
+*>i[2]:[0]:[0]:[48]:[0000.0000.0011]:[0]:[0.0.0.0]/216
+                      172.0.0.100                       100          0 i
+* i                   172.0.0.100                       100          0 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0013]:[0]:[0.0.0.0]/216
+                      172.0.0.13                        100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      172.0.0.100                       100          0 i
+* i                   172.0.0.100                       100          0 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      172.0.0.13                        100      32768 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+
+Route Distinguisher: 172.0.0.100:3
+* i[5]:[0]:[0]:[24]:[10.0.0.0]/224
+                      172.0.0.100              0        100          0 ?
+*>i                   172.0.0.100              0        100          0 ?
+* i[5]:[0]:[0]:[24]:[20.0.0.0]/224
+                      172.0.0.100              0        100          0 ?
+*>i                   172.0.0.100              0        100          0 ?
+
+Route Distinguisher: 172.0.0.100:32777
+* i[2]:[0]:[0]:[48]:[0000.0000.0011]:[0]:[0.0.0.0]/216
+                      172.0.0.100                       100          0 i
+*>i                   172.0.0.100                       100          0 i
+* i[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      172.0.0.100                       100          0 i
+*>i                   172.0.0.100                       100          0 i
+
+Route Distinguisher: 172.0.0.100:32787
+* i[2]:[0]:[0]:[48]:[0000.0000.0012]:[32]:[20.0.0.12]/272
+                      172.0.0.100                       100          0 i
+*>i                   172.0.0.100                       100          0 i
+
+Route Distinguisher: 172.0.0.111:32777
+* i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.111                      100          0 i
+*>i                   99.99.99.111                      100          0 i
+
+Route Distinguisher: 172.0.0.112:32777
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.112                      100          0 i
+* i                   99.99.99.112                      100          0 i
+
+Route Distinguisher: 172.0.0.13:3    (L3VNI 770000)
+*>i[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      172.0.0.100                       100          0 i
+* i                   172.0.0.100                       100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0012]:[32]:[20.0.0.12]/272
+                      172.0.0.100                       100          0 i
+* i                   172.0.0.100                       100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      100.0.0.1                         100          0 65254 65002 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      100.0.0.1                         100          0 65254 65002 i
+* i[5]:[0]:[0]:[24]:[10.0.0.0]/224
+                      172.0.0.100              0        100          0 ?
+*>l                   172.0.0.13               0        100      32768 ?
+*>i[5]:[0]:[0]:[24]:[20.0.0.0]/224
+                      172.0.0.100              0        100          0 ?
+```
+</details>
+
+<details> 
+<summary><b> Leaf21</b></summary>
+
+```
+Leaf21# sh bgp l2vpn evpn summary 
+BGP summary information for VRF default, address family L2VPN EVPN
+BGP router identifier 172.0.0.21, local AS number 65002
+BGP table version is 3617, L2VPN EVPN config peers 1, capable peers 1
+36 network entries and 36 paths using 6864 bytes of memory
+BGP attribute entries [34/5848], BGP AS path entries [1/10]
+BGP community entries [0/0], BGP clusterlist entries [0/0]
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+172.0.0.113     4 65002   28066   25781     3617    0    0    4d22h 13        
+
+Leaf21# sh bgp l2vpn evpn 
+BGP routing table information for VRF default, address family L2VPN EVPN
+BGP table version is 3617, Local Router ID is 172.0.0.21
+Status: s-suppressed, x-deleted, S-stale, d-dampened, h-history, *-valid, >-best
+Path type: i-internal, e-external, c-confed, l-local, a-aggregate, r-redist, I-i
+njected
+Origin codes: i - IGP, e - EGP, ? - incomplete, | - multipath, & - backup, 2 - b
+est2
+
+   Network            Next Hop            Metric     LocPrf     Weight Path
+Route Distinguisher: 2:10000
+*>i[2]:[0]:[0]:[48]:[0000.0000.0011]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      100.0.0.2                         100          0 65254 65001 i
+
+Route Distinguisher: 2:20000
+*>i[2]:[0]:[0]:[48]:[0000.0000.0012]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0012]:[32]:[20.0.0.12]/272
+                      100.0.0.2                         100          0 65254 65001 i
+
+Route Distinguisher: 172.0.0.21:32777    (L2VNI 10000)
+*>i[2]:[0]:[0]:[48]:[0000.0000.0011]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0021]:[0]:[0.0.0.0]/216
+                      172.0.0.21                        100      32768 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.113                      100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      100.0.0.2                         100          0 65254 65001 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0021]:[32]:[10.0.0.21]/272
+                      172.0.0.21                        100      32768 i
+
+Route Distinguisher: 172.0.0.21:32787    (L2VNI 20000)
+*>i[2]:[0]:[0]:[48]:[0000.0000.0012]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0022]:[0]:[0.0.0.0]/216
+                      172.0.0.21                        100      32768 i
+*>i[2]:[0]:[0]:[48]:[5000.0400.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[5000.0500.1b08]:[0]:[0.0.0.0]/216
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.113                      100          0 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0012]:[32]:[20.0.0.12]/272
+                      100.0.0.2                         100          0 65254 65001 i
+*>l[2]:[0]:[0]:[48]:[0000.0000.0022]:[32]:[20.0.0.22]/272
+                      172.0.0.21                        100      32768 i
+*>i[3]:[0]:[32]:[99.99.99.113]/88
+                      99.99.99.113                      100          0 i
+*>l[3]:[0]:[32]:[172.0.0.21]/88
+                      172.0.0.21                        100      32768 i
+
+Route Distinguisher: 172.0.0.113:32777
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.113                      100          0 i
+
+Route Distinguisher: 172.0.0.113:32787
+*>i[2]:[0]:[0]:[48]:[5000.f300.1b08]:[0]:[0.0.0.0]/216
+                      99.99.99.113                      100          0 i
+*>i[3]:[0]:[32]:[99.99.99.113]/88
+                      99.99.99.113                      100          0 i
+
+Route Distinguisher: 172.0.0.21:3    (L3VNI 770000)
+*>i[2]:[0]:[0]:[48]:[0000.0000.0011]:[32]:[10.0.0.11]/272
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0012]:[32]:[20.0.0.12]/272
+                      100.0.0.2                         100          0 65254 65001 i
+*>i[2]:[0]:[0]:[48]:[0000.0000.0013]:[32]:[10.0.0.13]/272
+                      100.0.0.2                         100          0 65254 65001 i
+*>l[5]:[0]:[0]:[24]:[10.0.0.0]/224
+                      172.0.0.21               0        100      32768 ?
+*>l[5]:[0]:[0]:[24]:[20.0.0.0]/224
+                      172.0.0.21               0        100      32768 ?
+```
+</details>
+
+### VXLAN (NVE)
+Проверяем, что NVE-интерфейс поднят, VTEP-ы видят друг друга, VNI активны. Spine1 быд выбран DF для vlan10 и vlan20, а Spine2 - vlan77.
+
+```
+Spine1# show nve interface nve 1
+Interface: nve1, State: Up, encapsulation: VXLAN
+ VPC Capability: VPC-VIP-Only [not-notified]
+ Local Router MAC: 5000.0400.1b08
+ Host Learning Mode: Control-Plane
+ Source-Interface: loopback99 (primary: 99.99.99.111, secondary: 0.0.0.0)
+
+Spine1# show nve peers 
+Interface Peer-IP                                 State LearnType Uptime   Route
+r-Mac       
+--------- --------------------------------------  ----- --------- -------- -----
+------------
+nve1      99.99.99.112                            Up    CP        01:37:55 n/a             
+nve1      99.99.99.113                            Up    CP        2d03h    n/a  
+nve1      100.0.0.2                               Up    CP        4d22h    0200.6400.0002   
+nve1      172.0.0.13                              Up    CP        1w2d     5000.f200.1b08   
+nve1      172.0.0.100                             Up    CP        2d06h    5000.0200.1b08   
+
+Spine1# show nve vni 
+Codes: CP - Control Plane        DP - Data Plane          
+       UC - Unconfigured         SA - Suppress ARP        
+       SU - Suppress Unknown Unicast 
+       Xconn - Crossconnect      
+       MS-IR - Multisite Ingress Replication
+ 
+Interface VNI      Multicast-group   State Mode Type [BD/VRF]      Flags
+--------- -------- ----------------- ----- ---- ------------------ -----
+nve1      10000    225.0.0.10        Up    CP   L2 [10]            MS-IR 
+nve1      20000    UnicastBGP        Up    CP   L2 [20]            MS-IR 
+nve1      770000   n/a               Up    CP   L3 [VRF_A]              
+
+Spine1# show nve vni 10000 detail 
+VNI: 10000 
+  NVE-Interface       : nve1
+  Mcast-Addr          : 225.0.0.10
+  VNI State           : Up
+  Mode                : control-plane
+  VNI Type            : L2 [10]
+  VNI Flags           : MS-IR 
+  Provision State     : vni-add-complete
+  Vlan-BD             : 10
+  SVI State           : n/a
+
+Spine1# show nve vni 20000 detail 
+VNI: 20000 
+  NVE-Interface       : nve1
+  Mcast-Addr          : UnicastBGP
+  VNI State           : Up
+  Mode                : control-plane
+  VNI Type            : L2 [20]
+  VNI Flags           : MS-IR 
+  Provision State     : vni-add-complete
+  Vlan-BD             : 20
+  SVI State           : n/a
+
+Spine1# sh nve ethernet-segment 
+
+ESI: 0300.0000.0000.0100.0309
+   Parent interface: nve1
+  ES State: Up 
+  Port-channel state: N/A
+  NVE Interface: nve1 
+   NVE State: Up 
+   Host Learning Mode: control-plane
+  Active Vlans: 1,10,20,77 
+   DF Vlans: 10,20 
+   Active VNIs: 10000,20000,770000 
+  CC failed for VLANs:  
+  VLAN CC timer: no-timer 
+  Number of ES members: 2 
+  My ordinal: 0 
+  DF timer start time: 00:00:00 
+  Config State: N/A 
+  DF List: 99.99.99.111 99.99.99.112  
+  ES route added to L2RIB: True
+  EAD/ES routes added to L2RIB: False
+  EAD/EVI route timer age: not running 
+```
+
+```
+Spine2# sh nve interface nve 1
+Interface: nve1, State: Up, encapsulation: VXLAN
+ VPC Capability: VPC-VIP-Only [not-notified]
+ Local Router MAC: 5000.0500.1b08
+ Host Learning Mode: Control-Plane
+ Source-Interface: loopback99 (primary: 99.99.99.112, secondary: 0.0.0.0)
+
+Spine2# show nve peers 
+Interface Peer-IP                                 State LearnType Uptime   Route
+r-Mac       
+--------- --------------------------------------  ----- --------- -------- -----
+------------
+nve1      99.99.99.111                            Up    CP        01:43:06 n/a              
+nve1      99.99.99.113                            Up    CP        01:43:06 n/a             
+nve1      100.0.0.2                               Up    CP        01:43:29 0200.6400.0002   
+nve1      172.0.0.13                              Up    CP        01:43:29 5000.f200.1b08   
+nve1      172.0.0.100                             Up    CP        01:43:29 5000.0200.1b08   
+
+Spine2# show nve vni 
+Codes: CP - Control Plane        DP - Data Plane          
+       UC - Unconfigured         SA - Suppress ARP        
+       SU - Suppress Unknown Unicast 
+       Xconn - Crossconnect      
+       MS-IR - Multisite Ingress Replication
+ 
+Interface VNI      Multicast-group   State Mode Type [BD/VRF]      Flags
+--------- -------- ----------------- ----- ---- ------------------ -----
+nve1      10000    225.0.0.10        Up    CP   L2 [10]            MS-IR 
+nve1      20000    UnicastBGP        Up    CP   L2 [20]            MS-IR 
+nve1      770000   n/a               Up    CP   L3 [VRF_A]              
+
+Spine2# show nve vni 10000 detail 
+VNI: 10000 
+  NVE-Interface       : nve1
+  Mcast-Addr          : 225.0.0.10
+  VNI State           : Up
+  Mode                : control-plane
+  VNI Type            : L2 [10]
+  VNI Flags           : MS-IR 
+  Provision State     : vni-add-complete
+  Vlan-BD             : 10
+  SVI State           : n/a
+
+Spine2# show nve vni 20000 detail 
+VNI: 20000 
+  NVE-Interface       : nve1
+  Mcast-Addr          : UnicastBGP
+  VNI State           : Up
+  Mode                : control-plane
+  VNI Type            : L2 [20]
+  VNI Flags           : MS-IR 
+  Provision State     : vni-add-complete
+  Vlan-BD             : 20
+  SVI State           : n/a
+
+Spine2# sh nve ethernet-segment 
+
+ESI: 0300.0000.0000.0100.0309
+   Parent interface: nve1
+  ES State: Up 
+  Port-channel state: N/A
+  NVE Interface: nve1 
+   NVE State: Up 
+   Host Learning Mode: control-plane
+  Active Vlans: 1,10,20,77 
+   DF Vlans: 1,77 
+   Active VNIs: 10000,20000,770000 
+  CC failed for VLANs:  
+  VLAN CC timer: no-timer 
+  Number of ES members: 2 
+  My ordinal: 1 
+  DF timer start time: 00:00:00 
+  Config State: N/A 
+  DF List: 99.99.99.111 99.99.99.112  
+  ES route added to L2RIB: True
+  EAD/ES routes added to L2RIB: False
+  EAD/EVI route timer age: not running 
+```
+
+```
+Spine3# show nve interface nve 1
+Interface: nve1, State: Up, encapsulation: VXLAN
+ VPC Capability: VPC-VIP-Only [not-notified]
+ Local Router MAC: 5000.f300.1b08
+ Host Learning Mode: Control-Plane
+ Source-Interface: loopback99 (primary: 99.99.99.113, secondary: 0.0.0.0)
+
+Spine3# show nve peers 
+Interface Peer-IP                                 State LearnType Uptime   Route
+r-Mac       
+--------- --------------------------------------  ----- --------- -------- -----
+------------
+nve1      99.99.99.111                            Up    CP        2d03h    n/a            
+nve1      99.99.99.112                            Up    CP        01:50:09 n/a            
+nve1      100.0.0.1                               Up    CP        4d22h    0200.6400.0001   
+nve1      172.0.0.21                              Up    CP        4d22h    5000.f400.1b08   
+
+Spine3# show nve vni 
+Codes: CP - Control Plane        DP - Data Plane          
+       UC - Unconfigured         SA - Suppress ARP        
+       SU - Suppress Unknown Unicast 
+       Xconn - Crossconnect      
+       MS-IR - Multisite Ingress Replication
+ 
+Interface VNI      Multicast-group   State Mode Type [BD/VRF]      Flags
+--------- -------- ----------------- ----- ---- ------------------ -----
+nve1      10000    225.0.0.10        Up    CP   L2 [10]            MS-IR 
+nve1      20000    UnicastBGP        Up    CP   L2 [20]            MS-IR 
+nve1      770000   n/a               Up    CP   L3 [VRF_A]              
+
+Spine3# show nve vni 10000 detail 
+VNI: 10000 
+  NVE-Interface       : nve1
+  Mcast-Addr          : 225.0.0.10
+  VNI State           : Up
+  Mode                : control-plane
+  VNI Type            : L2 [10]
+  VNI Flags           : MS-IR 
+  Provision State     : vni-add-complete
+  Vlan-BD             : 10
+  SVI State           : n/a
+
+Spine3# show nve vni 20000 detail 
+VNI: 20000 
+  NVE-Interface       : nve1
+  Mcast-Addr          : UnicastBGP
+  VNI State           : Up
+  Mode                : control-plane
+  VNI Type            : L2 [20]
+  VNI Flags           : MS-IR 
+  Provision State     : vni-add-complete
+  Vlan-BD             : 20
+  SVI State           : n/a
+```
+
+### VXLAN (L2RIB)
+Проверяем, что MAC-адреса серверов изучены и привязаны к правильным VTEP.
+
+```
+Leaf11# show vlan 
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    
+10   SERVERS_V10                      active    Po1, Po10, Eth1/4, Eth1/6
+                                                Eth1/7
+20   SERVERS_V20                      active    Po1, Po20, Eth1/5, Eth1/6
+                                                Eth1/7
+77   L3VNI                            active    Po1, Eth1/6, Eth1/7
+3900 BACKUP_VLAN_ROUTING              active    Po1, Eth1/6, Eth1/7
+
+VLAN Type         Vlan-mode
+---- -----        ----------
+1    enet         CE     
+10   enet         CE     
+20   enet         CE     
+77   enet         CE     
+3900 enet         CE     
+
+Remote SPAN VLANs
+-------------------------------------------------------------------------------
+
+Primary  Secondary  Type             Ports
+-------  ---------  ---------------  -------------------------------------------
+
+Leaf11# show mac
+mac        mac-list   
+Leaf11# show mac address-table vlan 10
+Legend: 
+        * - primary entry, G - Gateway MAC, (R) - Routed MAC, O - Overlay MAC
+        age - seconds since last seen,+ - primary entry using vPC Peer-Link,
+        (T) - True, (F) - False, C - ControlPlane MAC, ~ - vsan
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
++   10     0000.0000.0011   dynamic  0         F      F    Po10
+C   10     0000.0000.0013   dynamic  0         F      F    nve1(172.0.0.13)
+C   10     0000.0000.0021   dynamic  0         F      F    nve1(100.0.0.1)
+G   10     5000.0100.1b08   static   -         F      F    vPC Peer-Link(R)
+G   10     5000.0200.1b08   static   -         F      F    sup-eth1(R)
+Leaf11# show mac address-table vlan 20
+Legend: 
+        * - primary entry, G - Gateway MAC, (R) - Routed MAC, O - Overlay MAC
+        age - seconds since last seen,+ - primary entry using vPC Peer-Link,
+        (T) - True, (F) - False, C - ControlPlane MAC, ~ - vsan
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
++   20     0000.0000.0012   dynamic  0         F      F    Po20
+C   20     0000.0000.0022   dynamic  0         F      F    nve1(100.0.0.1)
+G   20     5000.0100.1b08   static   -         F      F    vPC Peer-Link(R)
+G   20     5000.0200.1b08   static   -         F      F    sup-eth1(R)
+```
+
+```
+Leaf13# sh vlan 
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    
+10   SERVERS                          active    Eth1/3
+77   L3VNI                            active    
+
+VLAN Type         Vlan-mode
+---- -----        ----------
+1    enet         CE     
+10   enet         CE     
+77   enet         CE     
+
+Remote SPAN VLANs
+-------------------------------------------------------------------------------
+
+Primary  Secondary  Type             Ports
+-------  ---------  ---------------  -------------------------------------------
+
+Leaf13# show mac
+mac        mac-list   
+Leaf13# show mac address-table vlan 10
+Legend: 
+        * - primary entry, G - Gateway MAC, (R) - Routed MAC, O - Overlay MAC
+        age - seconds since last seen,+ - primary entry using vPC Peer-Link,
+        (T) - True, (F) - False, C - ControlPlane MAC, ~ - vsan
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
+C   10     0000.0000.0011   dynamic  0         F      F    nve1(172.0.0.100)
+*   10     0000.0000.0013   dynamic  0         F      F    Eth1/3
+C   10     0000.0000.0021   dynamic  0         F      F    nve1(100.0.0.1)
+G   10     5000.f200.1b08   static   -         F      F    sup-eth1(R)
+```
+
+```
+Leaf21# sh vlan 
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    
+10   SERVERS_V10                      active    Eth1/4
+20   SERVERS_V20                      active    Eth1/5
+77   L3VNI                            active    
+
+VLAN Type         Vlan-mode
+---- -----        ----------
+1    enet         CE     
+10   enet         CE     
+20   enet         CE     
+77   enet         CE     
+
+Remote SPAN VLANs
+-------------------------------------------------------------------------------
+
+Primary  Secondary  Type             Ports
+-------  ---------  ---------------  -------------------------------------------
+
+Leaf21# sh mac address-table vlan 10
+Legend: 
+        * - primary entry, G - Gateway MAC, (R) - Routed MAC, O - Overlay MAC
+        age - seconds since last seen,+ - primary entry using vPC Peer-Link,
+        (T) - True, (F) - False, C - ControlPlane MAC, ~ - vsan
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
+C   10     0000.0000.0011   dynamic  0         F      F    nve1(100.0.0.2)
+C   10     0000.0000.0013   dynamic  0         F      F    nve1(100.0.0.2)
+*   10     0000.0000.0021   dynamic  0         F      F    Eth1/4
+G   10     5000.f400.1b08   static   -         F      F    sup-eth1(R)
+
+Leaf21# sh mac address-table vlan 20
+Legend: 
+        * - primary entry, G - Gateway MAC, (R) - Routed MAC, O - Overlay MAC
+        age - seconds since last seen,+ - primary entry using vPC Peer-Link,
+        (T) - True, (F) - False, C - ControlPlane MAC, ~ - vsan
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
+C   20     0000.0000.0012   dynamic  0         F      F    nve1(100.0.0.2)
+*   20     0000.0000.0022   dynamic  0         F      F    Eth1/5
+G   20     5000.f400.1b08   static   -         F      F    sup-eth1(R)
+```
+
+### Мультикаст (PIM) — только для VLAN 10
+В рамках проекта для доставки BUM-трафика внутри VLAN 10 используется PIM Sparse-Mode (PIM-SM). Все три пограничных коммутатора (Spine1, Spine2, Spine3) входят в единую группу Anycast-RP с общим виртуальным адресом 172.0.0.1. Это позволяет коммутаторам (Leaf) взаимодействовать с ближайшим RP без привязки к конкретному устройству.
+
+Ключевые особенности конфигурации:
+
+* RP-адрес 172.0.0.1 объявлен на всех Spine с помощью команды ip pim rp-address.
+* Группа Anycast-RP настроена через ip pim anycast-rp 172.0.0.1 <уникальный IP>.
+* Межсайтовый обмен информацией об активных источниках (S,G) между Spine1/Spine2 (Site 1) и Spine3 (Site 2) осуществляется через MSDP. Это позволяет Spine3 узнавать об источниках из Site 1 и наоборот.
+* Команда multisite ingress-replication на пограничных шлюзах (Spine1, Spine2, Spine3) для VNI 10000 говорит, что BUM-трафик для удалённого сайта должен быть отправлен с помощью Ingress Replication.
+* Для Underlay-связности MSDP-пиров используются адреса loopback99 (99.99.99.111/112/113), которые имеют маршруты через SuperSpine.
+
+```
+Leaf11# sh ip pim  neighbor 
+PIM Neighbor Status for VRF "default"
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD   
+ ECMP Redirect
+                                                         Priority Capable State     Capable
+172.16.11.1     Ethernet1/1          1w2d      00:01:19  1        yes     n/a       no
+172.16.12.1     Ethernet1/2          02:34:15  00:01:27  1        yes     n/a       no
+
+Leaf11# 
+Leaf11# sh ip pim rp 
+PIM RP Status Information for VRF "default"
+BSR disabled
+Auto-RP disabled
+BSR RP Candidate policy: None
+BSR RP policy: None
+Auto-RP Announce policy: None
+Auto-RP Discovery policy: None
+
+RP: 172.0.0.1, (0), 
+ uptime: 6w5d   priority: 255, 
+ RP-source: (local),  
+ group ranges:
+ 225.0.0.0/24   
+Leaf11# 
+Leaf11# sh ip mroute 225.0.0.10
+IP Multicast Routing Table for VRF "default"
+
+(*, 225.0.0.10/32), uptime: 7w0d, nve ip pim 
+  Incoming interface: Ethernet1/2, RPF nbr: 172.16.12.1
+  Outgoing interface list: (count: 1)
+    nve1, uptime: 7w0d, nve
+
+
+(172.0.0.21/32, 225.0.0.10/32), uptime: 00:09:54, ip pim mrib 
+  Incoming interface: loopback0, RPF nbr: 172.0.0.21
+  Outgoing interface list: (count: 2)
+    Ethernet1/2, uptime: 00:09:53, pim
+    nve1, uptime: 00:09:54, mrib
+
+
+(172.0.0.100/32, 225.0.0.10/32), uptime: 7w0d, nve mrib ip pim 
+  Incoming interface: loopback0, RPF nbr: 172.0.0.100
+  Outgoing interface list: (count: 1)
+    Ethernet1/2, uptime: 2d23h, pim
+```
+
+```
+Spine1(config)# sh ip mroute 225.0.0.10
+IP Multicast Routing Table for VRF "default"
+
+(*, 225.0.0.10/32), uptime: 01:15:41, nve pim ip 
+  Incoming interface: loopback1, RPF nbr: 172.0.0.1
+  Outgoing interface list: (count: 2)
+    Ethernet1/3, uptime: 01:15:23, pim
+    nve1, uptime: 01:15:41, nve
+
+
+(99.99.99.111/32, 225.0.0.10/32), uptime: 01:15:41, nve mrib pim ip 
+  Incoming interface: Null, RPF nbr: 0.0.0.0
+  Outgoing interface list: (count: 1)
+    Ethernet1/3, uptime: 01:15:23, pim
+
+
+(172.0.0.13/32, 225.0.0.10/32), uptime: 01:15:11, pim mrib ip msdp 
+  Incoming interface: Ethernet1/3, RPF nbr: 172.16.31.0, internal
+  Outgoing interface list: (count: 2)
+    Ethernet1/3, uptime: 01:04:05, pim, (RPF)
+    nve1, uptime: 01:15:11, mrib
+
+
+(172.0.0.21/32, 225.0.0.10/32), uptime: 00:00:31, msdp mrib ip pim 
+  Incoming interface: Ethernet1/2, RPF nbr: 172.16.21.0, internal
+  Outgoing interface list: (count: 1)
+    nve1, uptime: 00:00:31, mrib
+
+
+(172.0.0.100/32, 225.0.0.10/32), uptime: 01:15:23, pim mrib ip msdp 
+  Incoming interface: Ethernet1/2, RPF nbr: 172.16.21.0, internal
+  Outgoing interface list: (count: 2)
+    nve1, uptime: 01:15:23, mrib
+    Ethernet1/3, uptime: 01:15:23, pim
+```
+
+```
+Leaf21# show ip pim neighbor 
+PIM Neighbor Status for VRF "default"
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD   
+ ECMP Redirect
+                                                         Priority Capable State 
+    Capable
+172.16.211.0    Ethernet1/1          4d23h     00:01:41  1        yes     n/a   
+  no
+Leaf21# 
+Leaf21# sh ip pim rp
+rp        rp-hash   
+Leaf21# sh ip pim rp 
+PIM RP Status Information for VRF "default"
+BSR disabled
+Auto-RP disabled
+BSR RP Candidate policy: None
+BSR RP policy: None
+Auto-RP Announce policy: None
+Auto-RP Discovery policy: None
+
+RP: 172.0.0.2, (0), 
+ uptime: 6w5d   priority: 255, 
+ RP-source: (local),  
+ group ranges:
+ 225.0.0.0/24   
+
+Leaf21# sh ip mroute 225.0.0.10 detail 
+IP Multicast Routing Table for VRF "default"
+
+Total number of routes: 3
+Total number of (*,G) routes: 1
+Total number of (S,G) routes: 1
+Total number of (*,G-prefix) routes: 1
+
+(*, 225.0.0.10/32), uptime: 6w5d, nve(1) ip(0) pim(0) 
+  RPF Change only
+  RPF-Source: 172.0.0.2 [41/110]
+  Data Created: No
+  Nat Mode: Invalid
+  Nat Route Type: Invalid
+  VXLAN Flags
+    VXLAN Encap
+    VXLAN Last Hop
+  Stats: 0/0 [Packets/Bytes], 0.000   bps
+  Stats: Inactive Flow
+  Incoming interface: Ethernet1/1, RPF nbr: 172.16.211.0
+  LISP dest context id: 0  Outgoing interface list: (count: 1) (bridge-only: 0)
+    nve1, uptime: 6w5d, nve
+
+(172.0.0.21/32, 225.0.0.10/32), uptime: 6w5d, ip(0) nve(0) mrib(0) pim(1) 
+  RPF-Source: 172.0.0.21 [0/0]
+  Data Created: No
+  Received Register stop
+  Nat Mode: Invalid
+```
+
+```
+Spine3# sh ip pim neighbor 
+PIM Neighbor Status for VRF "default"
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD   
+ ECMP Redirect
+                                                         Priority Capable State 
+    Capable
+172.16.211.1    Ethernet1/1          4d23h     00:01:34  1        yes     n/a   
+  no
+Spine3# 
+Spine3# sh ip pim rp
+PIM RP Status Information for VRF "default"
+BSR disabled
+Auto-RP disabled
+BSR RP Candidate policy: None
+BSR RP policy: None
+Auto-RP Announce policy: None
+Auto-RP Discovery policy: None
+
+Anycast-RP 172.0.0.2 members:
+  172.0.0.113*  
+
+RP: 172.0.0.2*, (0), 
+ uptime: 4d23h   priority: 255, 
+ RP-source: (local),  
+ group ranges:
+ 225.0.0.0/24   
+Spine3# 
+Spine3# sh ip mroute 225.0.0.10 detail 
+IP Multicast Routing Table for VRF "default"
+
+Total number of routes: 4
+Total number of (*,G) routes: 1
+Total number of (S,G) routes: 2
+Total number of (*,G-prefix) routes: 1
+
+(*, 225.0.0.10/32), uptime: 4d23h, pim(1) ip(0) nve(1) 
+  RPF-Source: 172.0.0.2 [0/0]
+  Data Created: No
+  Nat Mode: Invalid
+  Nat Route Type: Invalid
+  VXLAN Flags
+    VXLAN Encap
+    VXLAN Last Hop
+  Stats: 0/0 [Packets/Bytes], 0.000   bps
+  Stats: Inactive Flow
+  Incoming interface: loopback1, RPF nbr: 172.0.0.2
+  LISP dest context id: 0  Outgoing interface list: (count: 2) (bridge-only: 0)
+    nve1, uptime: 4d23h, nve
+    Ethernet1/1, uptime: 4d23h, pim
+
+
+(99.99.99.113/32, 225.0.0.10/32), uptime: 4d23h, mrib(0) pim(1) ip(0) nve(0) 
+  RPF-Source: 99.99.99.113 [0/0]
+  Data Created: No
+  Nat Mode: Invalid
+  Nat Route Type: Invalid
+  VXLAN Flags
+    VXLAN Encap
+  Stats: 0/0 [Packets/Bytes], 0.000   bps
+  Stats: Inactive Flow
+  Incoming interface: Null, RPF nbr: 0.0.0.0
+  LISP dest context id: 0  Outgoing interface list: (count: 1) (bridge-only: 0)
+    Ethernet1/1, uptime: 4d23h, pim
+
+
+(172.0.0.21/32, 225.0.0.10/32), uptime: 4d23h, pim(1) mrib(1) ip(0) 
+  RPF-Source: 172.0.0.21 [41/110]
+  Data Created: No
+  Nat Mode: Invalid
+  Nat Route Type: Invalid
+  VXLAN Flags
+    VXLAN Decap
+  Stats: 0/0 [Packets/Bytes], 0.000   bps
+  Stats: Inactive Flow
+  Incoming interface: Ethernet1/1, RPF nbr: 172.16.211.1, internal
+  LISP dest context id: 0  Outgoing interface list: (count: 2) (bridge-only: 0)
+    Ethernet1/1, uptime: 2d04h, pim, (RPF)
+    nve1, uptime: 4d23h, mrib
+```
+
+### Ingress Replication — только для VLAN 20
+В рамках проекта для доставки BUM-трафика внутри VLAN 20 используется Ingress Replication. В отличие от PIM, этот метод не требует отдельной мультикаст-инфраструктуры и основан исключительно BGP EVPN.
+
+Ключевые особенности конфигурации:
+
+* На коммутаторах (Leaf11, Leaf12, Leaf21) в секции member vni 20000 настроена команда ingress-replication protocol bgp.
+* Каждый Leaf автоматически анонсирует через BGP EVPN маршруты типа 3, указывая, какие VNI он обслуживает.
+* На основе полученных маршрутов каждый Leaf формирует динамический список VTEP-адресов, которым необходимо реплицировать BUM-трафик для VLAN 20.
+* Межсайтовое взаимодействие для VLAN 20 осуществляется через SuperSpine. На пограничных шлюзах (Spine1, Spine2, Spine3) в конфигурации VNI 20000 присутствует команда multisite ingress-replication, которая обеспечивает передачу реплицированного BUM-трафика между сайтами.
+
+```
+VNI: 20000 
+  NVE-Interface       : nve1
+  Mcast-Addr          : UnicastBGP
+  VNI State           : Up
+  Mode                : control-plane
+  VNI Type            : L2 [20]
+  VNI Flags           : MS-IR 
+  Provision State     : vni-add-complete
+  Vlan-BD             : 20
+  SVI State           : n/a
+
+Leaf11# show bgp l2vpn evpn route-type 3 | i 20000
+Route Distinguisher: 1:20000
+             Imported paths list: L2-20000
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.111
+             Imported paths list: L2-20000
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.112
+Route Distinguisher: 172.0.0.11:32787    (L2VNI 20000)
+             Imported from 1:20000:[3]:[0]:[32]:[99.99.99.111]/88 
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.111
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.111
+             Imported from 1:20000:[3]:[0]:[32]:[99.99.99.112]/88 
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.112
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.112
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 172.0.0.100
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.111
+             Imported paths list: L2-20000
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.111
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.112
+             Imported paths list: L2-20000
+      Extcommunity: RT:9999:20000 ENCAP:8
+        Label: 20000, Tunnel Id: 99.99.99.112
+```
+
+
+
+
+### Проверка связанности хостов
+
+```
+Ep1#ping 10.0.0.13
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 10.0.0.13, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 812/1318/1837 ms
+
+Ep1#ping 10.0.0.21
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 10.0.0.21, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 1335/1678/1941 ms
+
+Ep1#ping 20.0.0.12
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 20.0.0.12, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 410/738/1094 ms
+
+Ep1#ping 20.0.0.22
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 20.0.0.22, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 1124/1371/1635 ms
+
+Ep2#ping 10.0.0.11
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 10.0.0.11, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 513/688/882 ms
+
+Ep2#ping 20.0.0.22
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 20.0.0.22, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 1170/1373/1646 ms
+
+Ep2#ping 10.0.0.13
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 10.0.0.13, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 779/1261/1834 ms
+
+Ep2#ping 10.0.0.21
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 10.0.0.21, timeout is 2 seconds:
+!!!!!
+Success rate is 100 percent (5/5), round-trip min/avg/max = 1272/1650/1951 ms
+
+```
+
+
+### Выводы
+
+```
+  В рамках проекта успешно реализована комбинированная модель пересылки BUM-трафика:
+
+  PIM Sparse-Mode с Anycast-RP — используется для VLAN 10. В проекте показана его работа внутри сайтов и синхронизация источников между сайтами через MSDP.
+Ingress Replication на базе BGP EVPN — обеспечивает доставку BUM для VLAN 20. Это более простой и предсказуемый метод: диагностика сводится к проверке BGP EVPN (маршруты типа 3) и связности NVE-пиров.
+EVPN Multi-Site через SuperSpine — позволяет объединять независимые EVPN-фабрики (разные AS) с сохранением next-hop маршрутов.
+vPC на Leaf11/Leaf12 и Anycast-шлюзы — гарантируют отказоустойчивость серверных сетей.
+Проект демонстрирует не «превосходство» PIM, а возможность его сосуществования с Ingress Replication в одной фабрике. Это полезно для плановой миграции: администратор может переводить VLAN за VLAN с PIM на Ingress Replication и наоборот, не останавливая сервисы. Такое решение рекомендовано для крупных ЦОД, где требуется баланс между эффективностью использования полосы пропускания и совместимостью с оборудованием, не поддерживающим PIM во всех сегментах.
+```
