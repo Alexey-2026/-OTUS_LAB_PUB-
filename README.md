@@ -11,4 +11,4 @@
 7 [VxLAN Multihoming](labs/lab07-VXLAN-Multihoming/README.md)  
 8a [VxLAN Routing](labs/lab08-VxLAN-Routing/README.md)  
 8b [VxLAN Routing with sub-interface, VRF-Lite](labs/lab08-VxLAN-Routing(v2)/README.md)  
-
+Проект [Комбинированная модель пересылки BUM-трафика (PIM + Ingress Replication) в архитектуре VXLAN EVPN Multi-Site](labs/Project/README.md)  
