@@ -813,7 +813,7 @@ evpn
 ```
 </details>
 
-### Spine3 (BGW для Site2, Anycast-RP 172.0.0.2)
+### Spine3 (BGW для Site2, Anycast-RP 172.0.0.1)
 <details> 
 <summary><b>Конфигурация Spine3</b></summary>
   
@@ -966,7 +966,7 @@ interface loopback0
 
 interface loopback1
   description ####RP_ANYCAST_Address#####
-  ip address 172.0.0.2/32
+  ip address 172.0.0.1/32
   ip ospf network point-to-point
   ip router ospf UNDERLAY area 0.0.0.0
   ip pim sparse-mode
@@ -1849,7 +1849,7 @@ configure maintenance profile maintenance-mode
       no nexthop trigger-delay
 
 fabric forwarding anycast-gateway-mac 0001.0001.0001
-ip pim rp-address 172.0.0.2 group-list 225.0.0.0/24
+ip pim rp-address 172.0.0.1 group-list 225.0.0.0/24
 ip pim ssm range 232.0.0.0/8
 vlan 1,10,20,77
 vlan 10
