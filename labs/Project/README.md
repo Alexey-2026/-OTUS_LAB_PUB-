@@ -3415,7 +3415,8 @@ Success rate is 100 percent (5/5), round-trip min/avg/max = 812/1318/1837 ms
 Ep1#ping 10.0.0.21
 Type escape sequence to abort.
 Sending 5, 100-byte ICMP Echos to 10.0.0.21, timeout is 2 seconds:
-!!!!!
+!!!!![Презентация по проекту.pptx](https://github.com/user-attachments/files/29159059/default.pptx)
+
 Success rate is 100 percent (5/5), round-trip min/avg/max = 1335/1678/1941 ms
 
 Ep1#ping 20.0.0.12
@@ -3472,3 +3473,4 @@ vPC на Leaf11/Leaf12 и Anycast-шлюзы — гарантируют отка
 не останавливая сервисы. Такое решение рекомендовано для крупных ЦОД, где требуется баланс между эффективностью использования
 полосы пропускания и совместимостью с оборудованием, не поддерживающим PIM во всех сегментах.
 ```
+[Презентация по проекту.pptx](https://github.com/user-attachments/files/29159064/default.pptx)
