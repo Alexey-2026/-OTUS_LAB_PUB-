@@ -3216,9 +3216,7 @@ Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
     Capable
 172.16.211.0    Ethernet1/1          4d23h     00:01:41  1        yes     n/a   
   no
-Leaf21# 
-Leaf21# sh ip pim rp
-rp        rp-hash   
+  
 Leaf21# sh ip pim rp 
 PIM RP Status Information for VRF "default"
 BSR disabled
@@ -3228,7 +3226,7 @@ BSR RP policy: None
 Auto-RP Announce policy: None
 Auto-RP Discovery policy: None
 
-RP: 172.0.0.2, (0), 
+RP: 172.0.0.1, (0), 
  uptime: 6w5d   priority: 255, 
  RP-source: (local),  
  group ranges:
@@ -3244,7 +3242,7 @@ Total number of (*,G-prefix) routes: 1
 
 (*, 225.0.0.10/32), uptime: 6w5d, nve(1) ip(0) pim(0) 
   RPF Change only
-  RPF-Source: 172.0.0.2 [41/110]
+  RPF-Source: 172.0.0.1 [41/110]
   Data Created: No
   Nat Mode: Invalid
   Nat Route Type: Invalid
@@ -3283,10 +3281,10 @@ BSR RP policy: None
 Auto-RP Announce policy: None
 Auto-RP Discovery policy: None
 
-Anycast-RP 172.0.0.2 members:
+Anycast-RP 172.0.0.1 members:
   172.0.0.113*  
 
-RP: 172.0.0.2*, (0), 
+RP: 172.0.0.1*, (0), 
  uptime: 4d23h   priority: 255, 
  RP-source: (local),  
  group ranges:
@@ -3301,7 +3299,7 @@ Total number of (S,G) routes: 2
 Total number of (*,G-prefix) routes: 1
 
 (*, 225.0.0.10/32), uptime: 4d23h, pim(1) ip(0) nve(1) 
-  RPF-Source: 172.0.0.2 [0/0]
+  RPF-Source: 172.0.0.1 [0/0]
   Data Created: No
   Nat Mode: Invalid
   Nat Route Type: Invalid
@@ -3310,7 +3308,7 @@ Total number of (*,G-prefix) routes: 1
     VXLAN Last Hop
   Stats: 0/0 [Packets/Bytes], 0.000   bps
   Stats: Inactive Flow
-  Incoming interface: loopback1, RPF nbr: 172.0.0.2
+  Incoming interface: loopback1, RPF nbr: 172.0.0.1
   LISP dest context id: 0  Outgoing interface list: (count: 2) (bridge-only: 0)
     nve1, uptime: 4d23h, nve
     Ethernet1/1, uptime: 4d23h, pim
