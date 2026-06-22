@@ -223,14 +223,14 @@ router ospf UNDERLAY
 router bgp 65254
   router-id 172.0.0.254
   address-family ipv4 unicast
-    maximum-paths 4
+    maximum-paths 2
   address-family l2vpn evpn
-    maximum-paths 4
+    maximum-paths 2
     retain route-target all
   neighbor 99.99.99.111
     remote-as 65001
     update-source loopback0
-    ebgp-multihop 5
+    ebgp-multihop 3
     address-family ipv4 unicast
       send-community extended
     address-family l2vpn evpn
