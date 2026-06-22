@@ -240,7 +240,7 @@ router bgp 65254
   neighbor 99.99.99.112
     remote-as 65001
     update-source loopback0
-    ebgp-multihop 5
+    ebgp-multihop 3
     address-family ipv4 unicast
       send-community extended
     address-family l2vpn evpn
@@ -250,7 +250,7 @@ router bgp 65254
   neighbor 99.99.99.113
     remote-as 65002
     update-source loopback0
-    ebgp-multihop 5
+    ebgp-multihop 3
     address-family ipv4 unicast
       send-community extended
     address-family l2vpn evpn
