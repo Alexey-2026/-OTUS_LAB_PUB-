@@ -33,7 +33,7 @@
 
 ## Схема сети
 
-<img src="https://github.com/user-attachments/assets/c6936e33-662d-44dd-a4f1-0d13465b4bf5" width="700" style="max-width: 100%; height: auto;">
+<img src="./SCHEM.JPG" width="900" style="max-width: 100%; height: auto;">
 
 *Рисунок 1 — Топология VXLAN EVPN Multi-Site с двумя сайтами и SuperSpine*
 
@@ -3455,9 +3455,9 @@ Success rate is 100 percent (5/5), round-trip min/avg/max = 1272/1650/1951 ms
 
 ```
 
-<img width="855" height="334" alt="WS_MC" src="https://github.com/user-attachments/assets/60b0f334-112f-4e2e-9873-b297d34a9632" />
+<img width="855" height="334" alt="WS_MC" src="WS_MC.JPG">
 
-<img width="855" height="314" alt="WS_IR" src="https://github.com/user-attachments/assets/604c7879-e5d2-4921-86da-8c3783f16a32" />
+<img width="855" height="314" alt="WS_IR" src="WS_IR.JPG">
 
 
 ### Выводы
