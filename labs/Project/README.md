@@ -1947,10 +1947,12 @@ interface Ethernet1/1
 interface Ethernet1/4
   description ----To_Servers_VLAN10----
   switchport access vlan 10
+  no shutdown
 
 interface Ethernet1/5
   description ----To_Servers_VLAN20----
   switchport access vlan 20
+  no shutdown
 
 interface loopback0
   description #####Router_ID#####
