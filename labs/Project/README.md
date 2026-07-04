@@ -1832,7 +1832,7 @@ feature nv overlay
 no password strength-check
 username admin password 5 $5$CEIAGP$1mk5/JIsaFyy4Jx/7NeH.ErS4s0JrimF6KNYiS/hUmC 
  role network-admin
-ip domain-lookup
+no ip domain-lookup
 bfd interval 100 min_rx 100 multiplier 5
 configure maintenance profile normal-mode
   interface Ethernet1/1
