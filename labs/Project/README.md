@@ -653,6 +653,7 @@ interface nve1
 
 interface Ethernet1/1
   description ----Leaf1_Eth1/2----
+  no switchport
   mtu 9216
   bfd interval 100 min_rx 100 multiplier 5
   no ip redirects
@@ -670,6 +671,7 @@ interface Ethernet1/1
 
 interface Ethernet1/2
   description ----Leaf2_Eth1/2----
+  no switchport
   mtu 9216
   bfd interval 100 min_rx 100 multiplier 5
   no ip redirects
@@ -687,6 +689,7 @@ interface Ethernet1/2
 
 interface Ethernet1/3
   description ----Leaf3_Eth1/2----
+  no switchport
   mtu 9216
   bfd interval 100 min_rx 100 multiplier 5
   no ip redirects
@@ -704,6 +707,7 @@ interface Ethernet1/3
 
 interface Ethernet1/4
   description ----SuperSpine_Eth1/2----
+  no switchport
   mtu 9216
   bfd interval 100 min_rx 100 multiplier 5
   no ip redirects
