@@ -1,5 +1,6 @@
 LEAF31
 ==========================================================
+'''
 root@Leaf31# run show configuration | display set                           
 set version 26.2R1.7-EVOI20260619095247-evo-builder-1
 set system host-name Leaf31
@@ -111,9 +112,11 @@ set protocols ospf area 0.0.0.0 interface et-0/0/1.0 interface-type p2p
 set protocols lldp port-id-subtype interface-name
 set protocols lldp interface all
 set switch-options vtep-source-interface lo0.0
+'''
 
 SPINE4
 =======================================================
+'''
 root@Spine4# run show configuration | display set 
 set version 26.2R1.7-EVOI20260619095247-evo-builder-1
 set system host-name Spine4
@@ -231,7 +234,7 @@ set protocols ospf area 0.0.0.0 interface et-0/0/1.0 interface-type p2p
 set protocols lldp port-id-subtype interface-name
 set protocols lldp interface all
 set switch-options vtep-source-interface lo0.0
-
+'''
 
 
 
