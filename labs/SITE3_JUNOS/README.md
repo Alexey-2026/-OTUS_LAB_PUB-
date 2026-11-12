@@ -236,5 +236,6 @@ set protocols lldp interface all
 set switch-options vtep-source-interface lo0.0
 ```
 
-
-
+DOCUMENTATION
+=======================================================
+[EVPN VXLAN Interoperability Between NXOS and Junos OS](https://github.com/Alexey-2026/-OTUS_LAB_PUB-/blob/main/labs/SITE3_JUNOS/evpn-vxlan-interop-between-nxos-and-junos-os.pdf)
