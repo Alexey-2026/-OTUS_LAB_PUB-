@@ -12,3 +12,4 @@
 8a [VxLAN Routing](labs/lab08-VxLAN-Routing/README.md)  
 8b [VxLAN Routing with sub-interface, VRF-Lite](labs/lab08-VxLAN-Routing(v2)/README.md)  
 Проект [Комбинированная модель пересылки BUM-трафика (Multicast + Ingress Replication) в архитектуре VXLAN EVPN Multi-Site](labs/Project/README.md)  
+9  [SITE3 JUNOS](labs/SITE3_JUNOS/README.md)
